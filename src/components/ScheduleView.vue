@@ -95,8 +95,8 @@ const formatPairsCount = (count) => {
   return `${count} пар`;
 };
 
+// Колір картки залежить виключно від типу пари (Лекція = Бірюза, Практика/Лаба = Бурштин)
 const getLessonTheme = (lesson) => {
-  if (lesson.isElective) return 'theme-elective';
   if (lesson.type === 'lecture') return 'theme-lecture';
   return 'theme-lab';
 };
@@ -106,12 +106,10 @@ const parseLessonMeta = (lesson) => {
   const groupMatch = rawSubject.match(/\[група\s*(\d+)\]/i);
   const groupBadge = groupMatch ? `Група ${groupMatch[1]}` : null;
   const cleanSubject = rawSubject.replace(/\[група\s*\d+\]/ig, '').replace(/\s+/g, ' ').trim();
-  const typeLabel = lesson.type === 'lecture' ? 'Лекція' : 'Практика';
 
   return {
     cleanSubject,
-    groupBadge,
-    typeLabel
+    groupBadge
   };
 };
 
@@ -143,33 +141,35 @@ const getLiveBadgeInfo = (day, pairIndex) => {
     </div>
 
     <div v-else class="schedule-content">
-      <!-- Рядок вибору днів тижня (без чисел місяця) -->
-      <nav class="day-bar" aria-label="Фільтр по днях тижня">
-        <button
-          type="button"
-          class="day-tab"
-          :class="{ 'is-active': activeDay === 'Всі' }"
-          @click="activeDay = 'Всі'"
-        >
-          <span class="day-tab-label">Всі</span>
-        </button>
+      <!-- Закріплена разом з хедером непрозора панель вибору днів тижня -->
+      <div class="day-bar-wrapper">
+        <nav class="day-bar" aria-label="Фільтр по днях тижня">
+          <button
+            type="button"
+            class="day-tab"
+            :class="{ 'is-active': activeDay === 'Всі' }"
+            @click="activeDay = 'Всі'"
+          >
+            <span class="day-tab-label">Всі</span>
+          </button>
 
-        <button
-          v-for="day in availableDays"
-          :key="day"
-          type="button"
-          class="day-tab"
-          :class="{
-            'is-active': activeDay === day,
-            'is-today': day === currentDayName
-          }"
-          :aria-label="day"
-          @click="activeDay = day"
-        >
-          <span class="day-tab-label">{{ dayShortNames[day] || day.slice(0, 2) }}</span>
-          <span v-if="day === currentDayName" class="today-dot" aria-hidden="true"></span>
-        </button>
-      </nav>
+          <button
+            v-for="day in availableDays"
+            :key="day"
+            type="button"
+            class="day-tab"
+            :class="{
+              'is-active': activeDay === day,
+              'is-today': day === currentDayName
+            }"
+            :aria-label="day"
+            @click="activeDay = day"
+          >
+            <span class="day-tab-label">{{ dayShortNames[day] || day.slice(0, 2) }}</span>
+            <span v-if="day === currentDayName" class="today-dot" aria-hidden="true"></span>
+          </button>
+        </nav>
+      </div>
 
       <!-- Порожній тиждень -->
       <div v-if="daysToRender.length === 0" class="empty-state">
@@ -207,7 +207,7 @@ const getLiveBadgeInfo = (day, pairIndex) => {
                 { 'is-highlighted': Boolean(getLiveBadgeInfo(day, pairIndex)) }
               ]"
             >
-              <!-- Ліва колонка часу -->
+              <!-- Ліва колонка часу (вирівняна зліва по краях з відступом) -->
               <div class="time-col">
                 <span class="time-text">{{ pairTimes[pairIndex]?.start || '—' }}</span>
                 <span class="pair-badge">ПАРА {{ String(pairIndex).padStart(2, '0') }}</span>
@@ -217,48 +217,43 @@ const getLiveBadgeInfo = (day, pairIndex) => {
               <!-- Вертикальний розділювач -->
               <div class="card-divider" aria-hidden="true"></div>
 
-              <!-- Права колонка інформації -->
+              <!-- Права компактна колонка інформації -->
               <div class="info-col">
-                <div class="badges-row">
-                  <span class="meta-badge meta-badge--type">
-                    {{ parseLessonMeta(lesson).typeLabel }}
-                  </span>
-                  <span v-if="lesson.isElective" class="meta-badge meta-badge--elective">
-                    Вибіркова
-                  </span>
+                <h3 class="subject-title">
+                  <span>{{ parseLessonMeta(lesson).cleanSubject }}</span>
                   <span
                     v-if="parseLessonMeta(lesson).groupBadge"
-                    class="meta-badge meta-badge--group"
+                    class="inline-badge inline-badge--group"
                   >
                     {{ parseLessonMeta(lesson).groupBadge }}
                   </span>
                   <span
                     v-if="getLiveBadgeInfo(day, pairIndex)"
-                    class="meta-badge meta-badge--live"
+                    class="inline-badge inline-badge--live"
                   >
                     <span class="live-dot" aria-hidden="true"></span>
                     {{ getLiveBadgeInfo(day, pairIndex).text }}
                   </span>
+                </h3>
+
+                <div v-if="lesson.teacher" class="meta-row">
+                  <svg class="meta-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                  <span class="meta-text">{{ lesson.teacher }}</span>
                 </div>
 
-                <h3 class="subject-title">{{ parseLessonMeta(lesson).cleanSubject }}</h3>
-
-                <div class="meta-list">
-                  <div v-if="lesson.teacher" class="meta-row">
-                    <svg class="meta-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                      <circle cx="12" cy="7" r="4" />
-                    </svg>
-                    <span class="meta-text">{{ lesson.teacher }}</span>
-                  </div>
-
+                <div v-if="lesson.room || lesson.isElective" class="meta-bottom-row">
                   <div v-if="lesson.room" class="meta-row meta-row--room">
-                    <svg class="meta-icon meta-icon--room" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="meta-icon meta-icon--room" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
                       <circle cx="12" cy="10" r="3" />
                     </svg>
                     <span class="meta-text meta-text--room">{{ lesson.room }}</span>
                   </div>
+
+                  <span v-if="lesson.isElective" class="elective-badge">Вибіркова</span>
                 </div>
               </div>
             </article>
@@ -271,18 +266,26 @@ const getLiveBadgeInfo = (day, pairIndex) => {
 
 <style scoped>
 .schedule-view {
-  padding-top: 14px;
+  padding-top: 0;
 }
 
-/* Day Switcher Bar */
+/* Sticky Day Switcher Wrapper — стикується безшовно до непрозорого хедера (top: 58px) */
+.day-bar-wrapper {
+  position: sticky;
+  top: 58px;
+  z-index: 35;
+  background: var(--bg-app);
+  margin: 0 -16px 14px;
+  padding: 6px 16px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
 .day-bar {
   display: flex;
   align-items: stretch;
   gap: 6px;
-  margin-bottom: 18px;
   overflow-x: auto;
   scrollbar-width: none;
-  padding-bottom: 2px;
 }
 
 .day-bar::-webkit-scrollbar {
@@ -291,20 +294,19 @@ const getLiveBadgeInfo = (day, pairIndex) => {
 
 .day-tab {
   flex: 1 0 46px;
-  min-height: 44px;
+  min-height: 40px;
   position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
   padding: 6px 8px;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -324,15 +326,19 @@ const getLiveBadgeInfo = (day, pairIndex) => {
   background: var(--accent-lavender);
   border-color: var(--accent-lavender);
   color: var(--bg-app);
-  font-weight: 700;
   box-shadow: 0 2px 12px var(--accent-lavender-glow);
 }
 
+/* Крапка у правому верхньому куті, щоб текст дня не стрибав по вертикалі */
 .today-dot {
-  width: 4px;
-  height: 4px;
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--accent-teal);
+  pointer-events: none;
 }
 
 .day-tab.is-active .today-dot {
@@ -343,7 +349,7 @@ const getLiveBadgeInfo = (day, pairIndex) => {
 .days-stack {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 18px;
 }
 
 .day-header {
@@ -351,7 +357,7 @@ const getLiveBadgeInfo = (day, pairIndex) => {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .day-heading-wrap {
@@ -361,7 +367,7 @@ const getLiveBadgeInfo = (day, pairIndex) => {
 }
 
 .day-heading {
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 700;
   color: var(--text-main);
   letter-spacing: -0.02em;
@@ -386,7 +392,7 @@ const getLiveBadgeInfo = (day, pairIndex) => {
 .pairs-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 /* Lesson Card */
@@ -400,7 +406,7 @@ const getLiveBadgeInfo = (day, pairIndex) => {
   align-items: stretch;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
@@ -426,33 +432,25 @@ const getLiveBadgeInfo = (day, pairIndex) => {
   --card-accent-glow: var(--accent-amber-glow);
 }
 
-/* 3. Вибіркова = Лаванда */
-.lesson-card.theme-elective {
-  --card-accent: var(--accent-lavender);
-  --card-accent-bg: var(--accent-lavender-bg);
-  --card-accent-border: var(--accent-lavender-border);
-  --card-accent-glow: var(--accent-lavender-glow);
-}
-
 .lesson-card.is-highlighted {
   border-color: var(--card-accent);
   box-shadow: 0 0 0 1px var(--card-accent-border), 0 6px 22px var(--card-accent-glow);
 }
 
-/* Time Column */
+/* Time Column — вузька ліва колонка з симетричними відступами по боках бейджа */
 .time-col {
-  width: 92px;
-  padding: 16px 10px;
+  width: auto;
+  padding: 10px 8px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
   flex-shrink: 0;
 }
 
 .time-text {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
@@ -460,15 +458,15 @@ const getLiveBadgeInfo = (day, pairIndex) => {
 }
 
 .pair-badge {
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--card-accent);
   background: var(--card-accent-bg);
   border: 1px solid var(--card-accent-border);
-  padding: 4px 8px;
-  border-radius: 7px;
-  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 6px;
+  line-height: 1.1;
   white-space: nowrap;
 }
 
@@ -476,7 +474,7 @@ const getLiveBadgeInfo = (day, pairIndex) => {
 .card-divider {
   width: 1px;
   background: var(--border-color);
-  margin: 14px 0;
+  margin: 10px 0;
   flex-shrink: 0;
 }
 
@@ -484,56 +482,43 @@ const getLiveBadgeInfo = (day, pairIndex) => {
 .info-col {
   flex: 1;
   min-width: 0;
-  padding: 15px 16px;
+  padding: 10px 14px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 8px;
+  gap: 5px;
 }
 
-.badges-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+.subject-title {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.32;
+  color: var(--text-main);
+  word-break: break-word;
 }
 
-.meta-badge {
+.inline-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
+  vertical-align: middle;
+  margin-left: 6px;
+  transform: translateY(-1px);
   font-size: 11px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 1px 7px;
   border-radius: 6px;
   line-height: 1.35;
+  white-space: nowrap;
 }
 
-.meta-badge--type {
-  color: var(--card-accent);
-  background: var(--card-accent-bg);
-  border: 1px solid var(--card-accent-border);
-}
-
-.lesson-card.theme-elective .meta-badge--type {
-  color: var(--text-muted);
-  background: rgba(255, 255, 255, 0.05);
-  border-color: var(--border-color);
-}
-
-.meta-badge--elective {
-  color: var(--accent-lavender);
-  background: var(--accent-lavender-bg);
-  border: 1px solid var(--accent-lavender-border);
-}
-
-.meta-badge--group {
+.inline-badge--group {
   color: var(--text-main);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.07);
   border: 1px solid var(--border-color);
 }
 
-.meta-badge--live {
+.inline-badge--live {
   color: var(--card-accent);
   background: var(--card-accent-bg);
   border: 1px solid var(--card-accent);
@@ -558,27 +543,25 @@ const getLiveBadgeInfo = (day, pairIndex) => {
   }
 }
 
-.subject-title {
-  font-size: 15.5px;
-  font-weight: 650;
-  line-height: 1.35;
-  color: var(--text-main);
-  word-break: break-word;
-}
-
-.meta-list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
 .meta-row {
   display: flex;
   align-items: flex-start;
-  gap: 7px;
+  gap: 6px;
   color: var(--text-muted);
-  font-size: 13.5px;
-  line-height: 1.35;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.meta-row--room {
+  flex: 1;
+  min-width: 0;
+}
+
+.meta-bottom-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .meta-icon {
@@ -601,6 +584,21 @@ const getLiveBadgeInfo = (day, pairIndex) => {
   font-weight: 500;
 }
 
+/* Лавандовий бейдж Вибіркова справа знизу */
+.elective-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  padding: 2px 7px;
+  border-radius: 6px;
+  color: var(--accent-lavender);
+  background: var(--accent-lavender-bg);
+  border: 1px solid var(--accent-lavender-border);
+  white-space: nowrap;
+}
+
 /* Empty States */
 .empty-state,
 .empty-day-card {
@@ -609,6 +607,7 @@ const getLiveBadgeInfo = (day, pairIndex) => {
   border-radius: var(--radius-lg);
   padding: 28px 20px;
   text-align: center;
+  margin-top: 12px;
 }
 
 .empty-title {
@@ -625,13 +624,8 @@ const getLiveBadgeInfo = (day, pairIndex) => {
 }
 
 @media (max-width: 370px) {
-  .time-col {
-    width: 84px;
-    padding: 14px 8px;
-  }
-
   .info-col {
-    padding: 14px 12px;
+    padding: 10px 12px;
   }
 }
 </style>
