@@ -132,13 +132,17 @@ export function analyzeGroupSettings(rawData, groupsRowIndex, selectedGroup) {
 
 // 2. Генерація розкладу
 export function extractScheduleForGroup(rawData, groupsRowIndex, selectedGroup, userSettings) {
+    // Захист від пустих налаштувань
+    userSettings = userSettings || {};
+    userSettings.selectedElectives = userSettings.selectedElectives || [];
+    userSettings.splitGroupNumbers = userSettings.splitGroupNumbers || {};
+
     const headerRow = rawData[groupsRowIndex];
     let targetCol = -1;
     for (let c = 0; c < headerRow.length; c++) {
         if (headerRow[c] === selectedGroup) { targetCol = c; break; }
     }
 
-    // ТА САМА ЛОГІКА МЕЖ ДЛЯ ГЕНЕРАЦІЇ
     const courseHeaderRow = rawData[groupsRowIndex - 1];
     const courseName = courseHeaderRow[targetCol];
 
@@ -181,17 +185,35 @@ export function extractScheduleForGroup(rawData, groupsRowIndex, selectedGroup, 
 
     for (const pairBlock of pairsData) {
         let activeCol = targetCol;
-        let isElectiveBlock = false;
-        let electiveName = "";
+        let isElectivePair = false;
 
-        // Шукаємо правильну колонку, але ТІЛЬКИ в межах свого курсу
+        // 1. Шукаємо "нашу" колонку (вибіркову або підгрупу) по ВСЬОМУ КУРСУ
         for (const row of pairBlock.rows) {
             for (let c = startCol; c <= endCol; c++) {
                 if (!row[c]) continue;
                 let val = row[c].toString();
+
+                let isElect = val.toUpperCase().includes("[ВИБІРКОВА]");
                 let splitMatch = val.match(/\[група\s*(\d+)\]/i);
-                if (splitMatch) {
-                    let cleanName = val.replace(/\[ВИБІРКОВА\]/ig, '').replace(/\[ЛЕКЦІЯ\]/ig, '').split(/\[група/i)[0].trim();
+                let cleanName = val.replace(/\[ВИБІРКОВА\]/ig, '').replace(/\[ЛЕКЦІЯ\]/ig, '').split(/\[група/i)[0].trim();
+
+                // Якщо це вибіркова, і ми її обрали
+                if (isElect) {
+                    if (userSettings.selectedElectives.includes(cleanName)) {
+                        if (splitMatch) {
+                            let expectedGroup = userSettings.splitGroupNumbers[cleanName] || mainSubGroupNum;
+                            if (splitMatch[1] === expectedGroup.toString()) {
+                                activeCol = c;
+                                isElectivePair = true;
+                            }
+                        } else {
+                            activeCol = c;
+                            isElectivePair = true;
+                        }
+                    }
+                }
+                // Якщо це просто предмет із поділом на групи
+                else if (splitMatch) {
                     let expectedGroup = userSettings.splitGroupNumbers[cleanName] || mainSubGroupNum;
                     if (splitMatch[1] === expectedGroup.toString()) {
                         activeCol = c;
@@ -200,19 +222,29 @@ export function extractScheduleForGroup(rawData, groupsRowIndex, selectedGroup, 
             }
         }
 
+        // 2. Перевіряємо, чи не залишилась у нашій активній колонці ЧУЖА вибіркова
+        let containsUnselectedElective = false;
         for (const row of pairBlock.rows) {
-            if (!row[activeCol]) continue;
-            let val = row[activeCol].toString();
-            if (val.toUpperCase().includes("[ВИБІРКОВА]")) {
-                isElectiveBlock = true;
-                electiveName = val.replace(/\[ВИБІРКОВА\]/ig, '').replace(/\[ЛЕКЦІЯ\]/ig, '').split(/\[група/i)[0].trim();
+            if (row[activeCol]) {
+                let val = row[activeCol].toString();
+                if (val.toUpperCase().includes("[ВИБІРКОВА]")) {
+                    let cleanName = val.replace(/\[ВИБІРКОВА\]/ig, '').replace(/\[ЛЕКЦІЯ\]/ig, '').split(/\[група/i)[0].trim();
+                    if (!userSettings.selectedElectives.includes(cleanName)) {
+                        containsUnselectedElective = true;
+                    } else {
+                        isElectivePair = true;
+                        containsUnselectedElective = false;
+                    }
+                }
             }
         }
 
-        if (isElectiveBlock && !userSettings.selectedElectives.includes(electiveName)) {
+        // Якщо це чужа вибіркова - просто скипаємо цю пару
+        if (containsUnselectedElective && !isElectivePair) {
             continue;
         }
 
+        // 3. Збираємо дані для 1-го і 2-го тижня
         let w1_rows = [], w2_rows = [];
         for (const row of pairBlock.rows) {
             let col2 = row[2] ? row[2].toString().trim() : "";
@@ -263,7 +295,7 @@ export function extractScheduleForGroup(rawData, groupsRowIndex, selectedGroup, 
                 teacher: teacher,
                 room: room,
                 type: type,
-                isElective: isElectiveBlock
+                isElective: isElectivePair
             };
         };
 
